@@ -292,7 +292,7 @@ class ST7789(DisplayBase): #for kobra 2 neo display
         self.old_framebuffer = [[0] * self.NEW_WIDTH for _ in range(self.NEW_HEIGHT)]
         
     def set_address_window(self, x0, y0, x1, y1):
-            self.send([0x2A] is_data=False) #CASET column address set command
+            self.send([0x2A], is_data=False) #CASET column address set command
             self.send([(x0 >> 8) & 0xFF, x0 & 0xFF, (x1 >> 8) & 0xFF, x1 & 0xFF], is_data=True)
     
             self.send([0x2B], is_data=False) #RASET row address set command
