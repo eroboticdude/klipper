@@ -286,46 +286,47 @@ class ST7789(DisplayBase): #for kobra 2 neo display
         #self.vcomh = config.getint('vcomh', 0, minval=0, maxval=63)
         self.invert = config.getboolean('invert', False)
 
-        NEW_WIDTH = 320
-        NEW_HEIGHT = 240
-        new_framebuffer = [[0] * NEW_WIDTH for _ in range(NEW_HEIGHT)]
-        old_framebuffer = [[0] * NEW_WIDTH for _ in range(NEW_HEIGHT)]
+        self.NEW_WIDTH = 320
+        self.NEW_HEIGHT = 240
+        self.new_framebuffer = [[0] * self.NEW_WIDTH for _ in range(self.NEW_HEIGHT)]
+        self.old_framebuffer = [[0] * self.NEW_WIDTH for _ in range(self.NEW_HEIGHT)]
         
     def set_address_window(self, x0, y0, x1, y1):
-            self.send(0x2A) #CASET column address set command
-            self.send([(x0 >> 8) & 0xFF, x0 & 0xFF, (x1 >> 8) & 0xFF, x1 & 0xFF])
+            self.send([0x2A] is_data=False) #CASET column address set command
+            self.send([(x0 >> 8) & 0xFF, x0 & 0xFF, (x1 >> 8) & 0xFF, x1 & 0xFF], is_data=True)
     
-            self.send(0x2B) #RASET row address set command
-            self.send([(y0 >> 8) & 0xFF, y0 & 0xFF, (y1 >> 8) & 0xFF, y1 & 0xFF])
+            self.send([0x2B], is_data=False) #RASET row address set command
+            self.send([(y0 >> 8) & 0xFF, y0 & 0xFF, (y1 >> 8) & 0xFF, y1 & 0xFF], is_data=True)
+        self.send([0x2C], is_data=False) #write to ram
+        
 
     def flush(self): #this is here to override the default inherited flush command and replace it with a version that converts the framebuffer of binary pixels to properly spaced RGB values for the ST7789   
             
         for new_data, old_data in self.all_framebuffers:
             
             def scale_framebuffer(new_data):
-                for y in range(NEW_HEIGHT):
-                    for x in range(NEW_WIDTH):
+                for y in range(self.NEW_HEIGHT):
+                    for x in range(self.NEW_WIDTH):
                         # Calculate corresponding coordinates in the old framebuffer
-                        old_x = x * 128 // NEW_WIDTH  # Map x coordinate
-                        old_y = y * 64 // NEW_HEIGHT  # Map y coordinate
+                        old_x = x * 128 // self.NEW_WIDTH  # Map x coordinate
+                        old_y = y * 64 //  self.NEW_HEIGHT  # Map y coordinate
                         
                         # Convert black-and-white to 16-bit RGB
                         pixel_value = new_data[old_y][old_x]
                         if pixel_value:  # Assuming non-zero means white
-                            new_framebuffer[y][x] = 0xFFFF  # White in 16-bit RGB
+                            self.new_framebuffer[y][x] = 0xFFFF  # White in 16-bit RGB
                         else:
-                            new_framebuffer[y][x] = 0x0000  # Black in 16-bit RGB
+                            self.new_framebuffer[y][x] = 0x0000  # Black in 16-bit RGB
     
               # Convert old_data to the new framebuffer resolution
             scale_framebuffer(new_data)
         
-                    # Find all differences in the framebuffers and send them to the chip
-             for new_framebuffer, old_framebuffer in self.flush: 
-                if new_framebuffer == old_framebuffer:
+                    # Find all differences in the framebuffers and send them to the chip 
+                if self.new_framebuffer == self.old_framebuffer:
                     continue
         
                 # Identify changed bytes
-                diffs = [[i, 1] for i, (n, o) in enumerate(zip(new_framebuffer, old_framebuffer)) if n != o]
+                diffs = [[i, 1] for i, (n, o) in enumerate(zip(self.new_framebuffer, self.old_framebuffer)) if n != o]
             
                 # Batch nearby changes
                 for i in range(len(diffs)-2, -1, -1):
@@ -350,29 +351,29 @@ class ST7789(DisplayBase): #for kobra 2 neo display
             old_framebuffer[:] = new_framebuffer #update scaled framebuffer
 
             
-    def init(self):
-        self.reset.init()
-        init_cmds = [
-            0x3A, 0x55, #color mode 16bit
-            0xB2, 0x0C, 0x0C, 0x00, 0x33, 0x33, #porch control
-            0xB7, 0X35, #gate control, default value
-            0xBB, 0x19, #VCOM setting 0.725v
-            0xC0, 0x2C, #LCMCTRL Default
-            0xC2, 0x01, #VDV and VRH command enable default 
-            0xC3, 0x12, #VRH set +-4.45v
-            0xC4, 0x20, #VDV set default
-            0xC6, 0x0F, #frame rate 60hz
-            0xD0, 0xA4, 0xA1, #power control default values
-    
-            0xE0, 0xD0, 0x04, 0x0D, 0x11, 0x13, 0x2B, 0x3F, 0x54, 0x4C, 0x18, 0x0D, 0x0B, 0x1F, 0x23, #positive voltage gamma control
-            0xE1, 0xD0, 0x04, 0x0C, 0x11, 0x13, 0x2C, 0x3F, 0x44, 0x51, 0x2F, 0x1F, 0x1F, 0x20, 0x23, #negative voltage gamma control
-    
-            0x21 if self.invert else 0x20, # Set normal/invert
-            0x11, #out of sleep mode
-            0x13, #normal display on
-            0x29, #display on        
-        ]
-        #reset display with 0x01
-        self.send(init_cmds)
-        self.flush()
+  def init(self):
+    self.reset.init()
+    init_sequence = [
+        (0x3A, [0x55]), # color mode 16bit
+        (0xB2, [0x0C, 0x0C, 0x00, 0x33, 0x33]), # porch control
+        (0xB7, [0x35]), # gate control
+        (0xBB, [0x19]), # VCOM setting
+        (0xC0, [0x2C]), # LCMCTRL
+        (0xC2, [0x01]), # VDV and VRH command enable
+        (0xC3, [0x12]), # VRH set
+        (0xC4, [0x20]), # VDV set
+        (0xC6, [0x0F]), # frame rate
+        (0xD0, [0xA4, 0xA1]), # power control
+        (0xE0, [0xD0, 0x04, 0x0D, 0x11, 0x13, 0x2B, 0x3F, 0x54, 0x4C, 0x18, 0x0D, 0x0B, 0x1F, 0x23]), # positive gamma
+        (0xE1, [0xD0, 0x04, 0x0C, 0x11, 0x13, 0x2C, 0x3F, 0x44, 0x51, 0x2F, 0x1F, 0x1F, 0x20, 0x23]), # negative gamma
+        ((0x21 if self.invert else 0x20), []), # set invert
+        (0x11, []), # out of sleep
+        (0x13, []), # normal display
+        (0x29, []), # display on
+    ]
+
+    for cmd, data in init_sequence:
+        self.send([cmd], is_data=False)  # Send the command first
+        if data:
+            self.send(data, is_data=True)  # Then send the data
 
