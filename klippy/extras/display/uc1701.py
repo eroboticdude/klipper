@@ -276,7 +276,7 @@ class SH1106(SSD1306):
 #define ST77XX_ORANGE 0xFC00
 
 class ST7789(DisplayBase): #for kobra 2 neo display
-    def __init__(self, config, columns=320, x_offset=0): #display is 320x240
+    def __init__(self, config, columns=128, x_offset=0): #display is 320x240, converting 1:2 to 3:4. might be stretched. Further looking into that can be done after this is tested
         io = SPI4wire(config, "dc_pin")
         io_bus = io.spi
         self.reset = ResetHelper(config.get("reset_pin", None), io_bus)
@@ -285,7 +285,7 @@ class ST7789(DisplayBase): #for kobra 2 neo display
         #self.vcomh = config.getint('vcomh', 0, minval=0, maxval=63)
         self.invert = config.getboolean('invert', False)
 
-    def flush(self): #this is here to hopefully override the default inherited flush command and replace it with a version that converts the framebuffer of binary pixels to properly spaced RGB values for the ST7789
+    def flush(self): #this is here to override the default inherited flush command and replace it with a version that converts the framebuffer of binary pixels to properly spaced RGB values for the ST7789
            # Define new dimensions
         NEW_WIDTH = 240
         NEW_HEIGHT = 320
