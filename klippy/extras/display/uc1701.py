@@ -294,8 +294,8 @@ class ST7789(DisplayBase): #for kobra 2 neo display
         io_bus = io.spi
         self.reset = ResetHelper(config.get("reset_pin", None), io_bus)
         DisplayBase.__init__(self, io, columns, x_offset)
-        self.contrast = config.getint('contrast', 239, minval=0, maxval=255)
-        self.vcomh = config.getint('vcomh', 0, minval=0, maxval=63)
+        #self.contrast = config.getint('contrast', 239, minval=0, maxval=255)
+        #self.vcomh = config.getint('vcomh', 0, minval=0, maxval=63)
         self.invert = config.getboolean('invert', False)
         def init(self):
         self.reset.init()
