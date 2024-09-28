@@ -241,41 +241,28 @@ class SH1106(SSD1306):
 
 #define ST_CMD_DELAY 0x80 # special signifier for command lists
 
-#define ST77XX_NOP 0x00
-#define ST77XX_SWRESET 0x01
-#define ST77XX_RDDID 0x04
-#define ST77XX_RDDST 0x09
+#define ST7789_NOP     0x00
+#define ST7789_SWRESET 0x01
+#define ST7789_RDDID   0x04
+#define ST7789_RDDST   0x09
 
-#define ST77XX_SLPIN 0x10
-#define ST77XX_SLPOUT 0x11
-#define ST77XX_PTLON 0x12
-#define ST77XX_NORON 0x13
+#define ST7789_SLPIN   0x10
+#define ST7789_SLPOUT  0x11
+#define ST7789_PTLON   0x12
+#define ST7789_NORON   0x13
 
-#define ST77XX_INVOFF 0x20
-#define ST77XX_INVON 0x21
-#define ST77XX_DISPOFF 0x28
-#define ST77XX_DISPON 0x29
-#define ST77XX_CASET 0x2A
-#define ST77XX_RASET 0x2B
-#define ST77XX_RAMWR 0x2C
-#define ST77XX_RAMRD 0x2E
+#define ST7789_INVOFF  0x20
+#define ST7789_INVON   0x21
+#define ST7789_DISPOFF 0x28
+#define ST7789_DISPON  0x29
+#define ST7789_CASET   0x2A
+#define ST7789_RASET   0x2B
+#define ST7789_RAMWR   0x2C
+#define ST7789_RAMRD   0x2E
 
-#define ST77XX_PTLAR 0x30
-#define ST77XX_TEOFF 0x34
-#define ST77XX_TEON 0x35
-#define ST77XX_MADCTL 0x36
-#define ST77XX_COLMOD 0x3A
-
-#define ST77XX_MADCTL_MY 0x80
-#define ST77XX_MADCTL_MX 0x40
-#define ST77XX_MADCTL_MV 0x20
-#define ST77XX_MADCTL_ML 0x10
-#define ST77XX_MADCTL_RGB 0x00
-
-#define ST77XX_RDID1 0xDA
-#define ST77XX_RDID2 0xDB
-#define ST77XX_RDID3 0xDC
-#define ST77XX_RDID4 0xDD
+#define ST7789_PTLAR   0x30
+#define ST7789_COLMOD  0x3A
+#define ST7789_MADCTL  0x36
 
   # Some ready-made 16-bit ('565') color settings:
 #define ST77XX_BLACK 0x0000
@@ -297,6 +284,62 @@ class ST7789(DisplayBase): #for kobra 2 neo display
         #self.contrast = config.getint('contrast', 239, minval=0, maxval=255)
         #self.vcomh = config.getint('vcomh', 0, minval=0, maxval=63)
         self.invert = config.getboolean('invert', False)
+
+    def flush(self): #this is here to hopefully override the default inherited flush command and replace it with a version that converts the framebuffer of binary pixels to properly spaced RGB values for the ST7789
+           # Define new dimensions
+        NEW_WIDTH = 240
+        NEW_HEIGHT = 320
+        
+        # Create new framebuffers with the new resolution
+        new_framebuffer = [[0] * NEW_WIDTH for _ in range(NEW_HEIGHT)]
+        old_framebuffer = [[0] * NEW_WIDTH for _ in range(NEW_HEIGHT)]
+        
+        # Function to scale framebuffer data
+        def scale_framebuffer(old_data):
+            for y in range(NEW_HEIGHT):
+                for x in range(NEW_WIDTH):
+                    # Calculate corresponding coordinates in the old framebuffer
+                    old_x = x * 64 // NEW_WIDTH  # Map x coordinate
+                    old_y = y * 128 // NEW_HEIGHT  # Map y coordinate
+                    
+                    # Convert black-and-white to 16-bit RGB
+                    pixel_value = old_data[old_y][old_x]
+                    if pixel_value:  # Assuming non-zero means white
+                        new_framebuffer[y][x] = 0xFFFF  # White in 16-bit RGB
+                    else:
+                        new_framebuffer[y][x] = 0x0000  # Black in 16-bit RGB
+        
+        # Convert old_data to the new framebuffer resolution
+        scale_framebuffer(old_data)
+        
+        # Find all differences in the framebuffers and send them to the chip
+        for new_data, old_data, page in self.all_framebuffers:
+            if new_data == old_data:
+                continue
+        
+            # Identify changed bytes
+            diffs = [[i, 1] for i, (n, o) in enumerate(zip(new_data, old_data)) if n != o]
+        
+            # Batch nearby changes
+            for i in range(len(diffs)-2, -1, -1):
+                pos, count = diffs[i]
+                nextpos, nextcount = diffs[i+1]
+                if pos + 5 >= nextpos and nextcount < 16:
+                    diffs[i][1] = nextcount + (nextpos - pos)
+                    del diffs[i+1]
+        
+            # Transmit changes
+            for col_pos, count in diffs:
+                # Set Position registers
+                ra = 0xb0 | (page & 0x0F)
+                ca_msb = 0x10 | ((col_pos >> 4) & 0x0F) #still needs work: ST7789 needs command bytes for the changing column and row coordinates
+                ca_lsb = col_pos & 0x0F
+                self.send([ra, ca_msb, ca_lsb])
+                self.send(new_data[col_pos:col_pos+count], is_data=True)
+        
+            old_data[:] = new_data  # Update old_data for the next loop
+
+            
         def init(self):
         self.reset.init()
         init_cmds = [
