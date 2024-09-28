@@ -238,3 +238,88 @@ class SH1106(SSD1306):
     def __init__(self, config):
         x_offset = config.getint('x_offset', 0, minval=0, maxval=3)
         SSD1306.__init__(self, config, 132, x_offset=x_offset)
+
+#define ST_CMD_DELAY 0x80 # special signifier for command lists
+
+#define ST77XX_NOP 0x00
+#define ST77XX_SWRESET 0x01
+#define ST77XX_RDDID 0x04
+#define ST77XX_RDDST 0x09
+
+#define ST77XX_SLPIN 0x10
+#define ST77XX_SLPOUT 0x11
+#define ST77XX_PTLON 0x12
+#define ST77XX_NORON 0x13
+
+#define ST77XX_INVOFF 0x20
+#define ST77XX_INVON 0x21
+#define ST77XX_DISPOFF 0x28
+#define ST77XX_DISPON 0x29
+#define ST77XX_CASET 0x2A
+#define ST77XX_RASET 0x2B
+#define ST77XX_RAMWR 0x2C
+#define ST77XX_RAMRD 0x2E
+
+#define ST77XX_PTLAR 0x30
+#define ST77XX_TEOFF 0x34
+#define ST77XX_TEON 0x35
+#define ST77XX_MADCTL 0x36
+#define ST77XX_COLMOD 0x3A
+
+#define ST77XX_MADCTL_MY 0x80
+#define ST77XX_MADCTL_MX 0x40
+#define ST77XX_MADCTL_MV 0x20
+#define ST77XX_MADCTL_ML 0x10
+#define ST77XX_MADCTL_RGB 0x00
+
+#define ST77XX_RDID1 0xDA
+#define ST77XX_RDID2 0xDB
+#define ST77XX_RDID3 0xDC
+#define ST77XX_RDID4 0xDD
+
+  # Some ready-made 16-bit ('565') color settings:
+#define ST77XX_BLACK 0x0000
+#define ST77XX_WHITE 0xFFFF
+#define ST77XX_RED 0xF800
+#define ST77XX_GREEN 0x07E0
+#define ST77XX_BLUE 0x001F
+#define ST77XX_CYAN 0x07FF
+#define ST77XX_MAGENTA 0xF81F
+#define ST77XX_YELLOW 0xFFE0
+#define ST77XX_ORANGE 0xFC00
+
+class ST7789(DisplayBase): #for kobra 2 neo display
+    def __init__(self, config, columns=320, x_offset=0): #display is 320x240
+        io = SPI4wire(config, "dc_pin")
+        io_bus = io.spi
+        self.reset = ResetHelper(config.get("reset_pin", None), io_bus)
+        DisplayBase.__init__(self, io, columns, x_offset)
+        self.contrast = config.getint('contrast', 239, minval=0, maxval=255)
+        self.vcomh = config.getint('vcomh', 0, minval=0, maxval=63)
+        self.invert = config.getboolean('invert', False)
+        def init(self):
+        self.reset.init()
+        init_cmds = [
+            0x3A, 0x55, #color mode 16bit
+            0xB2, 0x0C, 0x0C, 0x00, 0x33, 0x33, #porch control
+            0xB7, 0X35, #gate control, default value
+            0xBB, 0x19, #VCOM setting 0.725v
+            0xC0, 0x2C, #LCMCTRL Default
+            0xC2, 0x01, #VDV and VRH command enable default 
+            0xC3, 0x12, #VRH set +-4.45v
+            0xC4, 0x20, #VDV set default
+            0xC6, 0x0F, #frame rate 60hz
+            0xD0, 0xA4, 0xA1, #power control default values
+
+            0xE0, 0xD0, 0x04, 0x0D, 0x11, 0x13, 0x2B, 0x3F, 0x54, 0x4C, 0x18, 0x0D, 0x0B, 0x1F, 0x23, #positive voltage gamma control
+            0xE1, 0xD0, 0x04, 0x0C, 0x11, 0x13, 0x2C, 0x3F, 0x44, 0x51, 0x2F, 0x1F, 0x1F, 0x20, 0x23, #negative voltage gamma control
+
+            0x21 if self.invert else 0x20, # Set normal/invert
+            0x11, #out of sleep mode
+            0x13, #normal display on
+            0x29, #display on        
+        ]
+        #reset display with 0x01
+        self.send(init_cmds)
+        self.flush()
+
