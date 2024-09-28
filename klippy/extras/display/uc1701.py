@@ -351,29 +351,29 @@ class ST7789(DisplayBase): #for kobra 2 neo display
             old_framebuffer[:] = new_framebuffer #update scaled framebuffer
 
             
-  def init(self):
-    self.reset.init()
-    init_sequence = [
-        (0x3A, [0x55]), # color mode 16bit
-        (0xB2, [0x0C, 0x0C, 0x00, 0x33, 0x33]), # porch control
-        (0xB7, [0x35]), # gate control
-        (0xBB, [0x19]), # VCOM setting
-        (0xC0, [0x2C]), # LCMCTRL
-        (0xC2, [0x01]), # VDV and VRH command enable
-        (0xC3, [0x12]), # VRH set
-        (0xC4, [0x20]), # VDV set
-        (0xC6, [0x0F]), # frame rate
-        (0xD0, [0xA4, 0xA1]), # power control
-        (0xE0, [0xD0, 0x04, 0x0D, 0x11, 0x13, 0x2B, 0x3F, 0x54, 0x4C, 0x18, 0x0D, 0x0B, 0x1F, 0x23]), # positive gamma
-        (0xE1, [0xD0, 0x04, 0x0C, 0x11, 0x13, 0x2C, 0x3F, 0x44, 0x51, 0x2F, 0x1F, 0x1F, 0x20, 0x23]), # negative gamma
-        ((0x21 if self.invert else 0x20), []), # set invert
-        (0x11, []), # out of sleep
-        (0x13, []), # normal display
-        (0x29, []), # display on
-    ]
-
-    for cmd, data in init_sequence:
-        self.send([cmd], is_data=False)  # Send the command first
-        if data:
-            self.send(data, is_data=True)  # Then send the data
+      def init(self):
+        self.reset.init()
+        init_sequence = [
+            (0x3A, [0x55]), # color mode 16bit
+            (0xB2, [0x0C, 0x0C, 0x00, 0x33, 0x33]), # porch control
+            (0xB7, [0x35]), # gate control
+            (0xBB, [0x19]), # VCOM setting
+            (0xC0, [0x2C]), # LCMCTRL
+            (0xC2, [0x01]), # VDV and VRH command enable
+            (0xC3, [0x12]), # VRH set
+            (0xC4, [0x20]), # VDV set
+            (0xC6, [0x0F]), # frame rate
+            (0xD0, [0xA4, 0xA1]), # power control
+            (0xE0, [0xD0, 0x04, 0x0D, 0x11, 0x13, 0x2B, 0x3F, 0x54, 0x4C, 0x18, 0x0D, 0x0B, 0x1F, 0x23]), # positive gamma
+            (0xE1, [0xD0, 0x04, 0x0C, 0x11, 0x13, 0x2C, 0x3F, 0x44, 0x51, 0x2F, 0x1F, 0x1F, 0x20, 0x23]), # negative gamma
+            ((0x21 if self.invert else 0x20), []), # set invert
+            (0x11, []), # out of sleep
+            (0x13, []), # normal display
+            (0x29, []), # display on
+        ]
+    
+        for cmd, data in init_sequence:
+            self.send([cmd], is_data=False)  # Send the command first
+            if data:
+                self.send(data, is_data=True)  # Then send the data
 
