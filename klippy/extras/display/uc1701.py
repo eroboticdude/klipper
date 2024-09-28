@@ -276,6 +276,7 @@ class SH1106(SSD1306):
 #define ST77XX_ORANGE 0xFC00
 
 class ST7789(DisplayBase): #for kobra 2 neo display
+    
     def __init__(self, config, columns=128, x_offset=0): #display is 320x240, converting 1:2 to 3:4. might be stretched. Further looking into that can be done after this is tested
         io = SPI4wire(config, "dc_pin")
         io_bus = io.spi
@@ -285,59 +286,68 @@ class ST7789(DisplayBase): #for kobra 2 neo display
         #self.vcomh = config.getint('vcomh', 0, minval=0, maxval=63)
         self.invert = config.getboolean('invert', False)
 
-    def flush(self): #this is here to override the default inherited flush command and replace it with a version that converts the framebuffer of binary pixels to properly spaced RGB values for the ST7789
-           # Define new dimensions
-        NEW_WIDTH = 240
-        NEW_HEIGHT = 320
-        
-        # Create new framebuffers with the new resolution
+        NEW_WIDTH = 320
+        NEW_HEIGHT = 240
         new_framebuffer = [[0] * NEW_WIDTH for _ in range(NEW_HEIGHT)]
         old_framebuffer = [[0] * NEW_WIDTH for _ in range(NEW_HEIGHT)]
         
-        # Function to scale framebuffer data
-        def scale_framebuffer(old_data):
-            for y in range(NEW_HEIGHT):
-                for x in range(NEW_WIDTH):
-                    # Calculate corresponding coordinates in the old framebuffer
-                    old_x = x * 64 // NEW_WIDTH  # Map x coordinate
-                    old_y = y * 128 // NEW_HEIGHT  # Map y coordinate
-                    
-                    # Convert black-and-white to 16-bit RGB
-                    pixel_value = old_data[old_y][old_x]
-                    if pixel_value:  # Assuming non-zero means white
-                        new_framebuffer[y][x] = 0xFFFF  # White in 16-bit RGB
-                    else:
-                        new_framebuffer[y][x] = 0x0000  # Black in 16-bit RGB
+    def set_address_window(self, x0, y0, x1, y1):
+            self.send(0x2A) #CASET column address set command
+            self.send([(x0 >> 8) & 0xFF, x0 & 0xFF, (x1 >> 8) & 0xFF, x1 & 0xFF])
+    
+            self.send(0x2B) #RASET row address set command
+            self.send([(y0 >> 8) & 0xFF, y0 & 0xFF, (y1 >> 8) & 0xFF, y1 & 0xFF])
+
+    def flush(self): #this is here to override the default inherited flush command and replace it with a version that converts the framebuffer of binary pixels to properly spaced RGB values for the ST7789   
+            
+        for new_data, old_data in self.all_framebuffers:
+            
+            def scale_framebuffer(new_data):
+                for y in range(NEW_HEIGHT):
+                    for x in range(NEW_WIDTH):
+                        # Calculate corresponding coordinates in the old framebuffer
+                        old_x = x * 128 // NEW_WIDTH  # Map x coordinate
+                        old_y = y * 64 // NEW_HEIGHT  # Map y coordinate
+                        
+                        # Convert black-and-white to 16-bit RGB
+                        pixel_value = new_data[old_y][old_x]
+                        if pixel_value:  # Assuming non-zero means white
+                            new_framebuffer[y][x] = 0xFFFF  # White in 16-bit RGB
+                        else:
+                            new_framebuffer[y][x] = 0x0000  # Black in 16-bit RGB
+    
+              # Convert old_data to the new framebuffer resolution
+            scale_framebuffer(new_data)
         
-        # Convert old_data to the new framebuffer resolution
-        scale_framebuffer(old_data)
+                    # Find all differences in the framebuffers and send them to the chip
+             for new_framebuffer, old_framebuffer in self.flush: 
+                if new_framebuffer == old_framebuffer:
+                    continue
         
-        # Find all differences in the framebuffers and send them to the chip
-        for new_data, old_data, page in self.all_framebuffers:
-            if new_data == old_data:
-                continue
-        
-            # Identify changed bytes
-            diffs = [[i, 1] for i, (n, o) in enumerate(zip(new_data, old_data)) if n != o]
-        
-            # Batch nearby changes
-            for i in range(len(diffs)-2, -1, -1):
-                pos, count = diffs[i]
-                nextpos, nextcount = diffs[i+1]
-                if pos + 5 >= nextpos and nextcount < 16:
-                    diffs[i][1] = nextcount + (nextpos - pos)
-                    del diffs[i+1]
-        
-            # Transmit changes
-            for col_pos, count in diffs:
-                # Set Position registers
-                ra = 0xb0 | (page & 0x0F)
-                ca_msb = 0x10 | ((col_pos >> 4) & 0x0F) #still needs work: ST7789 needs command bytes for the changing column and row coordinates
-                ca_lsb = col_pos & 0x0F
-                self.send([ra, ca_msb, ca_lsb])
-                self.send(new_data[col_pos:col_pos+count], is_data=True)
+                # Identify changed bytes
+                diffs = [[i, 1] for i, (n, o) in enumerate(zip(new_framebuffer, old_framebuffer)) if n != o]
+            
+                # Batch nearby changes
+                for i in range(len(diffs)-2, -1, -1):
+                    pos, count = diffs[i]
+                    nextpos, nextcount = diffs[i+1]
+                    if pos + 5 >= nextpos and nextcount < 16:
+                        diffs[i][1] = nextcount + (nextpos - pos)
+                        del diffs[i+1]
+                # Transmit changes
+                for col_pos, count in diffs:
+
+                    #set address window
+                    x_start = col_pos
+                    x_end = col_pos + count - 1
+                    y_start = 0
+                    y_end = 240
+                  
+                    set_address_window(x_start, y_start, x_end, y_end)
+                    self.send(new_data[col_pos:col_pos+count], is_data=True)
         
             old_data[:] = new_data  # Update old_data for the next loop
+            old_framebuffer[:] = new_framebuffer #update scaled framebuffer
 
             
         def init(self):
